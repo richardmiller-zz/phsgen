@@ -14,14 +14,14 @@ import System.Directory
 import qualified Data.Text.Lazy.IO as TL
 import qualified ConfigVals as CV
 
-outputTemplate templateFilename vars = do
-    createDirectoryIfMissing True (outputDirectory vars)
+outputTemplate templateFilename outputRoot vars = do
+    createDirectoryIfMissing True (outputDirectory outputRoot vars)
     rendered <- hastacheFile defaultConfig templateFilename (mkGenericContext (toTemplateVars vars))
-    TL.writeFile (outputFilename vars) rendered
+    TL.writeFile (outputFilename outputRoot vars) rendered
 
-outputFilename fromClass = concat ["src/", map replaceSeparators $ CV.className fromClass, ".php"]
+outputFilename outputRoot fromClass = concat [outputRoot, "/", map replaceSeparators $ CV.className fromClass, ".php"]
 
-outputDirectory fromClass = concat ["src/", map replaceSeparators $ dirPath (CV.className fromClass)]
+outputDirectory outputRoot fromClass = concat [outputRoot, "/", map replaceSeparators $ dirPath (CV.className fromClass)]
     where
         dirPath = join "\\" . init . splitNamespace
 
