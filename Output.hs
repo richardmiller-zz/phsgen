@@ -11,13 +11,23 @@ import Data.List
 import Data.List.Split
 import Data.String.Utils
 import System.Directory
+import qualified Control.Monad as C
 import qualified Data.Text.Lazy.IO as TL
 import qualified ConfigVals as CV
 
 outputTemplate templateFilename outputRoot vars = do
     createDirectoryIfMissing True (outputDirectory outputRoot vars)
     rendered <- hastacheFile defaultConfig templateFilename (mkGenericContext (toTemplateVars vars))
-    TL.writeFile (outputFilename outputRoot vars) rendered
+    fileExists <- doesFileExist fname
+    C.unless (fileExists && isLocked (CV.locked vars)) $ TL.writeFile fname rendered
+        where
+            fname = outputFilename outputRoot vars
+
+
+isLocked Nothing = False
+isLocked (Just bool)
+ | bool = True
+ | otherwise = False
 
 outputFilename outputRoot fromClass = concat [outputRoot, "/", map replaceSeparators $ CV.className fromClass, ".php"]
 
@@ -35,7 +45,9 @@ data PClass =
           , properties :: [PProperty]
           , argumentsList :: String
           , implements :: String
+          , extends :: String
           , interfaceImports :: String
+          , parentImports :: String
           } deriving (Data, Typeable, Show)
 
 data PProperty =
@@ -52,8 +64,10 @@ toTemplateVars fromClass = PClass {
         , properties = tProps
         , imports = importsStr tProps
         , interfaceImports = interfaceImportsStr (CV.implements fromClass)
+        , parentImports = parentImportsStr (CV.extends fromClass)
         , argumentsList = args tProps
         , implements = implementsStr (CV.implements fromClass)
+        , extends = extendsStr (CV.extends fromClass)
     }
     where
         cName = CV.className fromClass
@@ -106,6 +120,10 @@ interfaceImportsStr (Just interfaces) = addLineBreaks . intercalate "\n" . remov
                 namespaced (x:xs) = True
         importStr interface = concat ["use ", interface, ";"]
 
+parentImportsStr :: Maybe String -> String
+parentImportsStr Nothing = ""
+parentImportsStr (Just parent) = concat ["use ", parent, ";\n"]
+
 namespaceStr = ns . splitNamespace
     where
         ns []     = ""
@@ -114,3 +132,6 @@ namespaceStr = ns . splitNamespace
 
 implementsStr (Just interfaces) = " implements " ++ (join ", " (map (last . splitNamespace) interfaces))
 implementsStr Nothing = ""
+
+extendsStr (Just parent) = " extends " ++ (last . splitNamespace $ parent)
+extendsStr Nothing = ""

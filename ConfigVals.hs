@@ -10,6 +10,8 @@ module ConfigVals
 , name
 , typeHint
 , getterName
+, extends
+, locked
 ) where
 
 import GHC.Generics
@@ -25,7 +27,9 @@ data PHPClass =
   PHPClass {
           className  :: String
           , implements :: Maybe [String]
+          , extends :: Maybe String
           , properties :: [PHPProperty]
+          , locked :: Maybe Bool
           } deriving (Generic, Show)
 
 data PHPProperty =

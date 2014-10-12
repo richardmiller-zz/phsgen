@@ -1,6 +1,6 @@
 <?php
-{{{namespace}}}{{{imports}}}{{{interfaceImports}}}
-class {{className}}{{implements}}
+{{{namespace}}}{{{imports}}}{{{interfaceImports}}}{{{parentImports}}}
+class {{className}}{{extends}}{{implements}}
 {
 {{#properties}}
     private ${{name}};
