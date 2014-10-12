@@ -1,6 +1,6 @@
 <?php
-{{{namespace}}}{{{imports}}}
-class {{className}}
+{{{namespace}}}{{{imports}}}{{{interfaceImports}}}
+class {{className}}{{implements}}
 {
 {{#properties}}
     private ${{name}};
@@ -14,7 +14,7 @@ class {{className}}
     }
 {{#properties}}
 
-    public function {{name}}()
+    public function {{getterName}}()
     {
         return $this->{{name}};
     }

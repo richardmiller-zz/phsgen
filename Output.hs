@@ -29,17 +29,20 @@ replaceSeparators = (\c -> if c=='\\' then '/'; else c)
 
 data PClass =
   PClass {
-          className  :: String
-          , namespace  :: String
+          className :: String
+          , namespace :: String
           , imports :: String
           , properties :: [PProperty]
           , argumentsList :: String
+          , implements :: String
+          , interfaceImports :: String
           } deriving (Data, Typeable, Show)
 
 data PProperty =
   PProperty {
-          name  :: String
-          , typeHint  :: Maybe String
+          name :: String
+          , getterName :: String
+          , typeHint :: Maybe String
           } deriving (Data, Typeable, Show)
 
 toTemplateVars :: CV.PHPClass -> PClass
@@ -48,15 +51,20 @@ toTemplateVars fromClass = PClass {
         , namespace = namespaceStr cName
         , properties = tProps
         , imports = importsStr tProps
+        , interfaceImports = interfaceImportsStr (CV.implements fromClass)
         , argumentsList = args tProps
+        , implements = implementsStr (CV.implements fromClass)
     }
     where
         cName = CV.className fromClass
         tProps = map toTemplateProperty . CV.properties $ fromClass
         toTemplateProperty fromProperty = PProperty {
             name = CV.name fromProperty
+            , getterName = getterMethod (CV.getterName fromProperty) (CV.name fromProperty)
             , typeHint = CV.typeHint fromProperty
         }
+        getterMethod (Just name) _ = name
+        getterMethod Nothing defaultName = defaultName
 
 splitNamespace = splitOn "\\"
 
@@ -83,8 +91,26 @@ importsStr = addLineBreaks . intercalate "\n" . removeLocal . removeNull . map i
                 importStr Nothing     = ""
                 importStr (Just hint) = concat ["use ", hint, ";"]
 
+
+interfaceImportsStr :: Maybe [String] -> String
+interfaceImportsStr Nothing = ""
+interfaceImportsStr (Just interfaces) = addLineBreaks . intercalate "\n" . removeLocal . removeNull $ map importStr interfaces
+    where
+        addLineBreaks str
+          | null str  = str
+          | otherwise = concat ["\n", str, "\n"]
+        removeNull = filter $ not . null
+        removeLocal = filter $ namespaced . splitNamespace
+            where
+                namespaced [x]    = False
+                namespaced (x:xs) = True
+        importStr interface = concat ["use ", interface, ";"]
+
 namespaceStr = ns . splitNamespace
     where
         ns []     = ""
         ns [x]    = ""
         ns (x:xs) = concat ["\nnamespace ", join "\\" $ init $ x:xs, ";\n"]
+
+implementsStr (Just interfaces) = " implements " ++ (join ", " (map (last . splitNamespace) interfaces))
+implementsStr Nothing = ""
