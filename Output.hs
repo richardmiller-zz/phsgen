@@ -11,6 +11,7 @@ import Data.List
 import Data.List.Split
 import Data.String.Utils
 import System.Directory
+import Control.Applicative
 import qualified Control.Monad as C
 import qualified Data.Text.Lazy.IO as TL
 import qualified ConfigVals as CV
@@ -22,12 +23,10 @@ outputTemplate templateFilename outputRoot vars = do
     C.unless (fileExists && isLocked (CV.locked vars)) $ TL.writeFile fname rendered
         where
             fname = outputFilename outputRoot vars
-
-
-isLocked Nothing = False
-isLocked (Just bool)
- | bool = True
- | otherwise = False
+            isLocked Nothing = False
+            isLocked (Just bool)
+             | bool = True
+             | otherwise = False
 
 outputFilename outputRoot fromClass = concat [outputRoot, "/", map replaceSeparators $ CV.className fromClass, ".php"]
 
@@ -59,18 +58,20 @@ data PProperty =
 
 toTemplateVars :: CV.PHPClass -> PClass
 toTemplateVars fromClass = PClass {
-        className = last . splitNamespace $ cName
+        className = classNameFromFqcn cName
         , namespace = namespaceStr cName
         , properties = tProps
         , imports = importsStr tProps
-        , interfaceImports = interfaceImportsStr (CV.implements fromClass)
-        , parentImports = parentImportsStr (CV.extends fromClass)
+        , interfaceImports = interfaceImportsStr cImplements
+        , parentImports = parentImportsStr cExtends
         , argumentsList = args tProps
-        , implements = implementsStr (CV.implements fromClass)
-        , extends = extendsStr (CV.extends fromClass)
+        , implements = implementsStr cImplements
+        , extends = extendsStr cExtends
     }
     where
         cName = CV.className fromClass
+        cImplements = CV.implements fromClass
+        cExtends = CV.extends fromClass
         tProps = map toTemplateProperty . CV.properties $ fromClass
         toTemplateProperty fromProperty = PProperty {
             name = CV.name fromProperty
@@ -82,47 +83,42 @@ toTemplateVars fromClass = PClass {
 
 splitNamespace = splitOn "\\"
 
+classNameFromFqcn  = last . splitNamespace
+
 args :: [PProperty] -> String
 args = intercalate ", " . map phpify
     where
         phpify x = concat [typeHintStr $ typeHint x, "$", name x]
-        typeHintStr Nothing     = ""
-        typeHintStr (Just hint) = last . splitNamespace $ hint ++ " "
+        typeHintStr hint = nothingToEmpty $ C.liftM2 (++) (classNameFromFqcn <$> hint) $ Just " "
 
 importsStr :: [PProperty] -> String
-importsStr = addLineBreaks . intercalate "\n" . removeLocal . removeNull . map importStatement
-    where
-        addLineBreaks str
-          | null str  = str
-          | otherwise = concat ["\n", str, "\n"]
-        removeNull = filter $ not . null
-        removeLocal = filter $ namespaced . splitNamespace
-            where
-                namespaced [x]    = False
-                namespaced (x:xs) = True
-        importStatement = importStr . typeHint
-            where
-                importStr Nothing     = ""
-                importStr (Just hint) = concat ["use ", hint, ";"]
-
+importsStr = formatUseStatements . map (mImportsStr . typeHint)
 
 interfaceImportsStr :: Maybe [String] -> String
 interfaceImportsStr Nothing = ""
-interfaceImportsStr (Just interfaces) = addLineBreaks . intercalate "\n" . removeLocal . removeNull $ map importStr interfaces
-    where
-        addLineBreaks str
-          | null str  = str
-          | otherwise = concat ["\n", str, "\n"]
-        removeNull = filter $ not . null
-        removeLocal = filter $ namespaced . splitNamespace
-            where
-                namespaced [x]    = False
-                namespaced (x:xs) = True
-        importStr interface = concat ["use ", interface, ";"]
+interfaceImportsStr (Just interfaces) = formatUseStatements $ map useStatement interfaces
 
-parentImportsStr :: Maybe String -> String
-parentImportsStr Nothing = ""
-parentImportsStr (Just parent) = concat ["use ", parent, ";\n"]
+useStatement fqcn = concat ["use ", fqcn, ";"]
+
+formatUseStatements = addLineBreaks . intercalate "\n" . removeLocal . removeNull
+
+nothingToEmpty Nothing = ""
+nothingToEmpty (Just str) = str
+
+parentImportsStr str = mImportsStr str ++ "\n"
+
+mImportsStr str = nothingToEmpty $ useStatement <$> str
+
+addLineBreaks str
+  | null str  = str
+  | otherwise = concat ["\n", str, "\n"]
+
+removeNull = filter $ not . null
+
+removeLocal = filter $ namespaced . splitNamespace
+    where
+        namespaced [x]    = False
+        namespaced (x:xs) = True
 
 namespaceStr = ns . splitNamespace
     where
@@ -130,8 +126,8 @@ namespaceStr = ns . splitNamespace
         ns [x]    = ""
         ns (x:xs) = concat ["\nnamespace ", join "\\" $ init $ x:xs, ";\n"]
 
-implementsStr (Just interfaces) = " implements " ++ (join ", " (map (last . splitNamespace) interfaces))
+implementsStr (Just interfaces) = concat [" implements ", join ", " . map classNameFromFqcn $ interfaces]
 implementsStr Nothing = ""
 
-extendsStr (Just parent) = " extends " ++ (last . splitNamespace $ parent)
-extendsStr Nothing = ""
+extendsStr parent = nothingToEmpty $ ((++) " extends ") <$> classNameFromFqcn <$> parent
+
