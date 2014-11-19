@@ -19,4 +19,20 @@ class {{className}}{{extends}}{{implements}}
         return $this->{{name}};
     }
 {{/properties}}
+{{#serializationMethods}}
+
+    public function serialize()
+    {
+        return [
+{{#properties}}
+            '${{name}}' => $this->{{name}},
+{{/properties}}
+        ];
+    }
+
+    public static function deserialize(array $data)
+    {
+        return new self({{{deserializationArguments}}});
+    }
+{{/serializationMethods}}
 }

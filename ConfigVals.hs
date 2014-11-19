@@ -10,8 +10,10 @@ module ConfigVals
 , name
 , typeHint
 , getterName
+, serializationOptions
 , extends
 , locked
+, serializable
 ) where
 
 import GHC.Generics
@@ -30,6 +32,7 @@ data PHPClass =
           , extends :: Maybe String
           , properties :: [PHPProperty]
           , locked :: Maybe Bool
+          , serializable :: Maybe Bool
           } deriving (Generic, Show)
 
 data PHPProperty =
@@ -37,6 +40,7 @@ data PHPProperty =
           name  :: String
           , typeHint :: Maybe String
           , getterName :: Maybe String
+          , serializationOptions :: Maybe String
           } deriving (Generic, Show)
 
 instance FromJSON PHPClass
